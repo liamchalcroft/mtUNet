@@ -1041,13 +1041,18 @@ class nnUNetMultiTaskTrainer(object):
         outputs = collate_outputs(train_outputs)
 
         if self.is_ddp:
-            losses_tr = [None for _ in range(dist.get_world_size())]
-            dist.all_gather_object(losses_tr, outputs['loss'])
-            loss_here = np.vstack(losses_tr).mean()
+            seg_losses_tr = [None for _ in range(dist.get_world_size())]
+            class_losses_tr = [None for _ in range(dist.get_world_size())]
+            dist.all_gather_object(seg_losses_tr, outputs['seg_loss'])
+            dist.all_gather_object(class_losses_tr, outputs['class_loss'])
+            seg_loss_here = np.vstack(seg_losses_tr).mean()
+            class_loss_here = np.vstack(class_losses_tr).mean()
         else:
-            loss_here = np.mean(outputs['loss'])
+            seg_loss_here = np.mean(outputs['seg_loss'])
+            class_loss_here = np.mean(outputs['class_loss'])
 
-        self.logger.log('train_losses', loss_here, self.current_epoch)
+        self.logger.log('train_seg_loss', seg_loss_here, self.current_epoch)
+        self.logger.log('train_class_loss', class_loss_here, self.current_epoch)
 
     def on_validation_epoch_start(self):
         self.network.eval()
@@ -1136,7 +1141,6 @@ class nnUNetMultiTaskTrainer(object):
         class_acc = (class_preds == class_target).float().mean()
 
         return {
-            'loss': total_loss.detach().cpu().numpy(),
             'seg_loss': seg_loss.detach().cpu().numpy(),
             'class_loss': class_loss.detach().cpu().numpy(),
             'class_acc': class_acc.detach().cpu().numpy(),
@@ -1166,9 +1170,13 @@ class nnUNetMultiTaskTrainer(object):
             dist.all_gather_object(fns, fn)
             fn = np.vstack([i[None] for i in fns]).sum(0)
 
-            losses_val = [None for _ in range(world_size)]
-            dist.all_gather_object(losses_val, outputs_collated['loss'])
-            loss_here = np.vstack(losses_val).mean()
+            seg_losses_val = [None for _ in range(world_size)]
+            dist.all_gather_object(seg_losses_val, outputs_collated['seg_loss'])
+            seg_loss_here = np.vstack(seg_losses_val).mean()
+
+            class_losses_val = [None for _ in range(world_size)]
+            dist.all_gather_object(class_losses_val, outputs_collated['class_loss'])
+            class_loss_here = np.vstack(class_losses_val).mean()
 
             class_accs = [None for _ in range(world_size)]
             dist.all_gather_object(class_accs, outputs_collated['class_acc'])
@@ -1181,7 +1189,8 @@ class nnUNetMultiTaskTrainer(object):
         mean_fg_dice = np.nanmean(global_dc_per_class)
         self.logger.log('mean_fg_dice', mean_fg_dice, self.current_epoch)
         self.logger.log('dice_per_class_or_region', global_dc_per_class, self.current_epoch)
-        self.logger.log('val_losses', loss_here, self.current_epoch)
+        self.logger.log('val_seg_loss', seg_loss_here, self.current_epoch)
+        self.logger.log('val_class_loss', class_loss_here, self.current_epoch)
         self.logger.log('val_class_acc', class_acc_here, self.current_epoch)
 
     def on_epoch_start(self):
@@ -1190,8 +1199,10 @@ class nnUNetMultiTaskTrainer(object):
     def on_epoch_end(self):
         self.logger.log('epoch_end_timestamps', time(), self.current_epoch)
 
-        self.print_to_log_file('train_loss', np.round(self.logger.my_fantastic_logging['train_losses'][-1], decimals=4))
-        self.print_to_log_file('val_loss', np.round(self.logger.my_fantastic_logging['val_losses'][-1], decimals=4))
+        self.print_to_log_file('train_seg_loss', np.round(self.logger.my_fantastic_logging['train_seg_loss'][-1], decimals=4))
+        self.print_to_log_file('val_seg_loss', np.round(self.logger.my_fantastic_logging['val_seg_loss'][-1], decimals=4))
+        self.print_to_log_file('train_class_loss', np.round(self.logger.my_fantastic_logging['train_class_loss'][-1], decimals=4))
+        self.print_to_log_file('val_class_loss', np.round(self.logger.my_fantastic_logging['val_class_loss'][-1], decimals=4))
         self.print_to_log_file('val_class_acc', np.round(self.logger.my_fantastic_logging['val_class_acc'][-1], decimals=4))
         self.print_to_log_file('Pseudo dice', [np.round(i, decimals=4) for i in
                                                self.logger.my_fantastic_logging['dice_per_class_or_region'][-1]])

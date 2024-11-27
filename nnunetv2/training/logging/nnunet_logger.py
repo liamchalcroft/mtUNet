@@ -19,12 +19,14 @@ class nnUNetLogger(object):
             'mean_fg_dice': list(),
             'ema_fg_dice': list(),
             'dice_per_class_or_region': list(),
-            'train_losses': list(),
-            'val_losses': list(),
             'lrs': list(),
             'epoch_start_timestamps': list(),
             'epoch_end_timestamps': list(),
-            'val_class_acc': list()
+            'val_class_acc': list(),
+            'train_seg_loss': list(),
+            'val_seg_loss': list(),
+            'train_class_loss': list(),
+            'val_class_loss': list()
         }
         self.verbose = verbose
         # shut up, this logging is great
@@ -56,24 +58,40 @@ class nnUNetLogger(object):
         # we infer the epoch form our internal logging
         epoch = min([len(i) for i in self.my_fantastic_logging.values()]) - 1  # lists of epoch 0 have len 1
         sns.set(font_scale=2.5)
-        fig, ax_all = plt.subplots(3, 1, figsize=(30, 54))
-        # regular progress.png as we are used to from previous nnU-Net versions
+        fig, ax_all = plt.subplots(4, 1, figsize=(30, 72))
+        
+        # Segmentation metrics plot
         ax = ax_all[0]
         ax2 = ax.twinx()
         x_values = list(range(epoch + 1))
-        ax.plot(x_values, self.my_fantastic_logging['train_losses'][:epoch + 1], color='b', ls='-', label="loss_tr", linewidth=4)
-        ax.plot(x_values, self.my_fantastic_logging['val_losses'][:epoch + 1], color='r', ls='-', label="loss_val", linewidth=4)
+        ax.plot(x_values, self.my_fantastic_logging['train_seg_loss'][:epoch + 1], color='b', ls='-', label="train seg loss", linewidth=4)
+        ax.plot(x_values, self.my_fantastic_logging['val_seg_loss'][:epoch + 1], color='r', ls='-', label="val seg loss", linewidth=4)
         ax2.plot(x_values, self.my_fantastic_logging['mean_fg_dice'][:epoch + 1], color='g', ls='dotted', label="pseudo dice",
                  linewidth=3)
         ax2.plot(x_values, self.my_fantastic_logging['ema_fg_dice'][:epoch + 1], color='g', ls='-', label="pseudo dice (mov. avg.)",
                  linewidth=4)
-        ax2.plot(x_values, self.my_fantastic_logging['val_class_acc'][:epoch + 1], color='purple', ls='-', label="classification acc",
-                 linewidth=4)
         ax.set_xlabel("epoch")
-        ax.set_ylabel("loss")
-        ax2.set_ylabel("pseudo dice / accuracy")
+        ax.set_ylabel("segmentation loss")
+        ax2.set_ylabel("pseudo dice")
         ax.legend(loc=(0, 1))
         ax2.legend(loc=(0.2, 1))
+        ax.set_title("Segmentation Metrics")
+        
+        # Classification metrics plot
+        ax = ax_all[1]
+        ax2 = ax.twinx()
+        ax.plot(x_values, self.my_fantastic_logging['train_class_loss'][:epoch + 1], color='b', ls='-', label="train class loss",
+                linewidth=4)
+        ax.plot(x_values, self.my_fantastic_logging['val_class_loss'][:epoch + 1], color='r', ls='-', label="val class loss",
+                linewidth=4)
+        ax2.plot(x_values, self.my_fantastic_logging['val_class_acc'][:epoch + 1], color='purple', ls='-', label="classification acc",
+                linewidth=4)
+        ax.set_xlabel("epoch") 
+        ax.set_ylabel("classification loss")
+        ax2.set_ylabel("accuracy")
+        ax.legend(loc=(0, 1))
+        ax2.legend(loc=(0.2, 1))
+        ax.set_title("Classification Metrics")
 
         # epoch times to see whether the training speed is consistent (inconsistent means there are other jobs
         # clogging up the system)
