@@ -95,7 +95,7 @@ class nnUNetLogger(object):
 
         # epoch times to see whether the training speed is consistent (inconsistent means there are other jobs
         # clogging up the system)
-        ax = ax_all[1]
+        ax = ax_all[2]
         ax.plot(x_values, [i - j for i, j in zip(self.my_fantastic_logging['epoch_end_timestamps'][:epoch + 1],
                                                  self.my_fantastic_logging['epoch_start_timestamps'])][:epoch + 1], color='b',
                 ls='-', label="epoch duration", linewidth=4)
@@ -106,7 +106,7 @@ class nnUNetLogger(object):
         ax.legend(loc=(0, 1))
 
         # learning rate
-        ax = ax_all[2]
+        ax = ax_all[3]
         ax.plot(x_values, self.my_fantastic_logging['lrs'][:epoch + 1], color='b', ls='-', label="learning rate", linewidth=4)
         ax.set_xlabel("epoch")
         ax.set_ylabel("learning rate")
