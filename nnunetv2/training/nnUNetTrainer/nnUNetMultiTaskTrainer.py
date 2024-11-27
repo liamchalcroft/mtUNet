@@ -1182,7 +1182,8 @@ class nnUNetMultiTaskTrainer(object):
             dist.all_gather_object(class_accs, outputs_collated['class_acc'])
             class_acc_here = np.vstack(class_accs).mean()
         else:
-            loss_here = np.mean(outputs_collated['loss'])
+            seg_loss_here = np.mean(outputs_collated['seg_loss'])
+            class_loss_here = np.mean(outputs_collated['class_loss'])
             class_acc_here = np.mean(outputs_collated['class_acc'])
 
         global_dc_per_class = [i for i in [2 * i / (2 * i + j + k) for i, j, k in zip(tp, fp, fn)]]
