@@ -1016,7 +1016,7 @@ class nnUNetMultiTaskTrainer(object):
             seg_loss = self.loss(seg_outputs, target)
                             
             # Calculate classification loss
-            print(f"Class output: {class_output}")
+            print(f"Class output: {class_output.softmax(dim=1)}")
             print(f"Class target: {class_target}")
             class_loss = self.classification_loss(class_output, class_target)
             
@@ -1135,7 +1135,7 @@ class nnUNetMultiTaskTrainer(object):
             fn_hard = fn_hard[1:]
 
         # Calculate classification accuracy
-        class_preds = torch.argmax(class_output, dim=1)
+        class_preds = torch.argmax(class_output.softmax(dim=1), dim=1)
         print(f"Class preds: {class_preds}")
         print(f"Class target: {class_target}")
         class_acc = (class_preds == class_target).float().mean()
