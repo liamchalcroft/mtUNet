@@ -432,7 +432,7 @@ class nnUNetMultiTaskTrainer(object):
         """
 
         samples_per_class = [62, 106, 84] # hardcoded for now
-        return nn.CrossEntropyLoss(weight=1./torch.tensor(samples_per_class, dtype=torch.float32))
+        return nn.CrossEntropyLoss(weight=1./torch.tensor(samples_per_class, dtype=torch.float32, device=self.device))
 
     def configure_rotation_dummyDA_mirroring_and_inital_patch_size(self):
         """
