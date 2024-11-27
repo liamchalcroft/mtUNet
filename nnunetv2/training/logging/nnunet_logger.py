@@ -23,7 +23,8 @@ class nnUNetLogger(object):
             'val_losses': list(),
             'lrs': list(),
             'epoch_start_timestamps': list(),
-            'epoch_end_timestamps': list()
+            'epoch_end_timestamps': list(),
+            'val_class_acc': list()
         }
         self.verbose = verbose
         # shut up, this logging is great
@@ -66,9 +67,11 @@ class nnUNetLogger(object):
                  linewidth=3)
         ax2.plot(x_values, self.my_fantastic_logging['ema_fg_dice'][:epoch + 1], color='g', ls='-', label="pseudo dice (mov. avg.)",
                  linewidth=4)
+        ax2.plot(x_values, self.my_fantastic_logging['val_class_acc'][:epoch + 1], color='purple', ls='-', label="classification acc",
+                 linewidth=4)
         ax.set_xlabel("epoch")
         ax.set_ylabel("loss")
-        ax2.set_ylabel("pseudo dice")
+        ax2.set_ylabel("pseudo dice / accuracy")
         ax.legend(loc=(0, 1))
         ax2.legend(loc=(0.2, 1))
 

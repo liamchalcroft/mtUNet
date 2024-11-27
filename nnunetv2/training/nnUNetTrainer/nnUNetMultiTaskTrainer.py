@@ -174,9 +174,6 @@ class nnUNetMultiTaskTrainer(object):
                               timestamp.second))
         self.logger = nnUNetLogger()
 
-        # Initialize logging keys
-        self.logger.my_fantastic_logging['val_class_acc'] = []
-
         ### placeholders
         self.dataloader_train = self.dataloader_val = None  # see on_train_start
 
