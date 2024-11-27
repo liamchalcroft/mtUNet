@@ -430,7 +430,9 @@ class nnUNetMultiTaskTrainer(object):
         Build the classification loss function.
         By default this is cross entropy.
         """
-        return nn.CrossEntropyLoss()
+
+        samples_per_class = [62, 106, 84] # hardcoded for now
+        return nn.CrossEntropyLoss(weight=1./torch.tensor(samples_per_class, dtype=torch.float32))
 
     def configure_rotation_dummyDA_mirroring_and_inital_patch_size(self):
         """
