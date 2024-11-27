@@ -111,8 +111,6 @@ class ResidualEncoderUNetWithClassification(ResidualEncoderUNet):
         
         # Get bottleneck features (last skip connection)
         bottleneck = skips[-1]
-
-        print(f"Bottleneck shape: {bottleneck.shape}")
         
         # Get classification output
         classification_output = self.classification_head(bottleneck)
