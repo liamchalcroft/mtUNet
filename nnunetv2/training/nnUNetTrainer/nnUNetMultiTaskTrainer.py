@@ -1054,7 +1054,7 @@ class nnUNetMultiTaskTrainer(object):
         """Modified to handle both segmentation and classification"""
         data = batch['data']
         target = batch['target']
-        class_target = batch['class_target']
+        class_target = batch['subtype']
 
         data = data.to(self.device, non_blocking=True)
         if isinstance(target, list):
