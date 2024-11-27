@@ -1016,6 +1016,8 @@ class nnUNetMultiTaskTrainer(object):
             seg_loss = self.loss(seg_outputs, target)
                             
             # Calculate classification loss
+            print(f"Class output: {class_output}")
+            print(f"Class target: {class_target}")
             class_loss = self.classification_loss(class_output, class_target)
             
             # Combined loss (can be weighted if needed)
@@ -1134,6 +1136,8 @@ class nnUNetMultiTaskTrainer(object):
 
         # Calculate classification accuracy
         class_preds = torch.argmax(class_output, dim=1)
+        print(f"Class preds: {class_preds}")
+        print(f"Class target: {class_target}")
         class_acc = (class_preds == class_target).float().mean()
 
         return {
