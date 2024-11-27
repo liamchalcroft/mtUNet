@@ -1011,13 +1011,9 @@ class nnUNetMultiTaskTrainer(object):
             
             # Calculate segmentation loss (with deep supervision if enabled)
             seg_loss = self.loss(seg_outputs, target)
-            
-            print(f"Seg loss: {seg_loss}")
-                
+                            
             # Calculate classification loss
             class_loss = self.classification_loss(class_output, class_target)
-
-            print(f"Class loss: {class_loss}")
             
             # Combined loss (can be weighted if needed)
             total_loss = seg_loss + class_loss
