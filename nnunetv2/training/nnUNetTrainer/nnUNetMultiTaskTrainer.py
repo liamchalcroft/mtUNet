@@ -1085,7 +1085,7 @@ class nnUNetMultiTaskTrainer(object):
         
         # we only need the output with the highest output resolution (if DS enabled)
         if self.enable_deep_supervision:
-            output = output[0]
+            output = seg_outputs[0]
             target = target[0]
 
         # the following is needed for online evaluation. Fake dice (green line)
