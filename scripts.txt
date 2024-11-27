@@ -1,0 +1,7 @@
+nnUNetv2_plan_and_preprocess -d 1 -pl nnUNetPlannerResEncM
+
+nnUNetv2_train 1 3d_fullres 0
+
+nnUNetv2_train 1 3d_fullres 0 -device cpu
+
+nnUNetv2_train 1 3d_fullres 0 -device mps
