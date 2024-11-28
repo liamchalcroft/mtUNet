@@ -1,4 +1,3 @@
-
 from typing import Union, Type, List, Tuple
 from dynamic_network_architectures.architectures.unet import PlainConvUNet, ResidualEncoderUNet
 from torch import nn
@@ -41,10 +40,19 @@ class PlainConvUNetWithClassification(PlainConvUNet):
         self.classification_head = nn.Sequential(
             pool_op,
             nn.Flatten(),
-            nn.Linear(bottleneck_features, bottleneck_dim),
+            nn.Linear(bottleneck_features, bottleneck_dim * 2),
+            nn.InstanceNorm1d(bottleneck_dim * 2),
             nn.ReLU(inplace=True),
-            nn.Dropout(p=0.3),
-            nn.Linear(bottleneck_dim, num_classification_classes)
+            nn.Dropout(p=0.2),
+            nn.Linear(bottleneck_dim * 2, bottleneck_dim),
+            nn.InstanceNorm1d(bottleneck_dim),
+            nn.ReLU(inplace=True),
+            nn.Dropout(p=0.2),
+            nn.Linear(bottleneck_dim, bottleneck_dim // 2),
+            nn.InstanceNorm1d(bottleneck_dim // 2),
+            nn.ReLU(inplace=True),
+            nn.Dropout(p=0.2),
+            nn.Linear(bottleneck_dim // 2, num_classification_classes)
         )
 
     def forward(self, x):
@@ -99,10 +107,19 @@ class ResidualEncoderUNetWithClassification(ResidualEncoderUNet):
         self.classification_head = nn.Sequential(
             pool_op,
             nn.Flatten(),
-            nn.Linear(bottleneck_features, bottleneck_dim),
+            nn.Linear(bottleneck_features, bottleneck_dim * 2),
+            nn.InstanceNorm1d(bottleneck_dim * 2),
             nn.ReLU(inplace=True),
-            nn.Dropout(p=0.3),
-            nn.Linear(bottleneck_dim, num_classification_classes)
+            nn.Dropout(p=0.2),
+            nn.Linear(bottleneck_dim * 2, bottleneck_dim),
+            nn.InstanceNorm1d(bottleneck_dim),
+            nn.ReLU(inplace=True),
+            nn.Dropout(p=0.2),
+            nn.Linear(bottleneck_dim, bottleneck_dim // 2),
+            nn.InstanceNorm1d(bottleneck_dim // 2),
+            nn.ReLU(inplace=True),
+            nn.Dropout(p=0.2),
+            nn.Linear(bottleneck_dim // 2, num_classification_classes)
         )
 
     def forward(self, x):
