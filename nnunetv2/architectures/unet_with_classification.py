@@ -1,4 +1,3 @@
-
 from typing import Union, Type, List, Tuple
 from dynamic_network_architectures.architectures.unet import PlainConvUNet, ResidualEncoderUNet
 from torch import nn
@@ -19,7 +18,7 @@ class PlainConvUNetWithClassification(PlainConvUNet):
                  num_classification_classes: int,
                  bottleneck_dim: int = 512,
                  **kwargs):
-        super().__init__(input_channels, n_stages, features_per_stage, conv_op, 
+        super().__init__(input_channels, n_stages, features_per_stage, conv_op,
                         kernel_sizes, strides, n_conv_per_stage, num_classes,
                         n_conv_per_stage_decoder, **kwargs)
 
@@ -32,16 +31,33 @@ class PlainConvUNetWithClassification(PlainConvUNet):
         else:
             bottleneck_features = features_per_stage
             
-        # Classification head
-        if dim == 3:
-            pool_op = nn.AdaptiveAvgPool3d(1)
-        else:
-            pool_op = nn.AdaptiveAvgPool2d(1)
-            
+        # Classification head with conv layers
+        conv = nn.Conv3d if dim == 3 else nn.Conv2d
+        norm = nn.InstanceNorm3d if dim == 3 else nn.InstanceNorm2d
+        
         self.classification_head = nn.Sequential(
-            pool_op,
+            # Reduce spatial dimensions gradually
+            conv(bottleneck_features, bottleneck_features//2, kernel_size=3, padding=1),
+            norm(bottleneck_features//2),
+            nn.GELU(),
+            nn.MaxPool3d(2) if dim == 3 else nn.MaxPool2d(2),
+            
+            conv(bottleneck_features//2, bottleneck_features//4, kernel_size=3, padding=1),
+            norm(bottleneck_features//4),
+            nn.GELU(),
+            nn.MaxPool3d(2) if dim == 3 else nn.MaxPool2d(2),
+            
+            # Final spatial reduction
+            conv(bottleneck_features//4, bottleneck_features//4, kernel_size=1),
+            norm(bottleneck_features//4),
+            nn.GELU(),
+            
+            # Now pool
+            nn.AdaptiveAvgPool3d(1) if dim == 3 else nn.AdaptiveAvgPool2d(1),
             nn.Flatten(),
-            nn.Linear(bottleneck_features, bottleneck_dim),
+            
+            # Final classification layers
+            nn.Linear(bottleneck_features//4, bottleneck_dim),
             nn.LayerNorm(bottleneck_dim),
             nn.GELU(),
             nn.Dropout(p=0.3),
@@ -91,16 +107,33 @@ class ResidualEncoderUNetWithClassification(ResidualEncoderUNet):
         else:
             bottleneck_features = features_per_stage
             
-        # Classification head
-        if dim == 3:
-            pool_op = nn.AdaptiveAvgPool3d(1)
-        else:
-            pool_op = nn.AdaptiveAvgPool2d(1)
-            
+        # Classification head with conv layers
+        conv = nn.Conv3d if dim == 3 else nn.Conv2d
+        norm = nn.InstanceNorm3d if dim == 3 else nn.InstanceNorm2d
+        
         self.classification_head = nn.Sequential(
-            pool_op,
+            # Reduce spatial dimensions gradually
+            conv(bottleneck_features, bottleneck_features//2, kernel_size=3, padding=1),
+            norm(bottleneck_features//2),
+            nn.GELU(),
+            nn.MaxPool3d(2) if dim == 3 else nn.MaxPool2d(2),
+            
+            conv(bottleneck_features//2, bottleneck_features//4, kernel_size=3, padding=1),
+            norm(bottleneck_features//4),
+            nn.GELU(),
+            nn.MaxPool3d(2) if dim == 3 else nn.MaxPool2d(2),
+            
+            # Final spatial reduction
+            conv(bottleneck_features//4, bottleneck_features//4, kernel_size=1),
+            norm(bottleneck_features//4),
+            nn.GELU(),
+            
+            # Now pool
+            nn.AdaptiveAvgPool3d(1) if dim == 3 else nn.AdaptiveAvgPool2d(1),
             nn.Flatten(),
-            nn.Linear(bottleneck_features, bottleneck_dim),
+            
+            # Final classification layers
+            nn.Linear(bottleneck_features//4, bottleneck_dim),
             nn.LayerNorm(bottleneck_dim),
             nn.GELU(),
             nn.Dropout(p=0.3),
