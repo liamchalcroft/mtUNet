@@ -24,7 +24,7 @@ class nnUNetDataLoader3D(nnUNetDataLoaderBase):
             case_properties.append(properties)
 
             subtype = properties['subtype']
-            subtype_all[j, subtype] = 1
+            subtype_all[j] = subtype
 
             # If we are doing the cascade then the segmentation from the previous stage will already have been loaded by
             # self._data.load_case(i) (see nnUNetDataset.load_case)
