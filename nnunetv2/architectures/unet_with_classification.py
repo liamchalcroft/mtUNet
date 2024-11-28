@@ -40,12 +40,10 @@ class PlainConvUNetWithClassification(PlainConvUNet):
             conv(bottleneck_features, bottleneck_features//2, kernel_size=3, padding=1),
             norm(bottleneck_features//2),
             nn.GELU(),
-            nn.MaxPool3d(2) if dim == 3 else nn.MaxPool2d(2),
             
             conv(bottleneck_features//2, bottleneck_features//4, kernel_size=3, padding=1),
             norm(bottleneck_features//4),
             nn.GELU(),
-            nn.MaxPool3d(2) if dim == 3 else nn.MaxPool2d(2),
             
             # Final spatial reduction
             conv(bottleneck_features//4, bottleneck_features//4, kernel_size=1),
@@ -116,12 +114,10 @@ class ResidualEncoderUNetWithClassification(ResidualEncoderUNet):
             conv(bottleneck_features, bottleneck_features//2, kernel_size=3, padding=1),
             norm(bottleneck_features//2),
             nn.GELU(),
-            nn.MaxPool3d(2) if dim == 3 else nn.MaxPool2d(2),
             
             conv(bottleneck_features//2, bottleneck_features//4, kernel_size=3, padding=1),
             norm(bottleneck_features//4),
             nn.GELU(),
-            nn.MaxPool3d(2) if dim == 3 else nn.MaxPool2d(2),
             
             # Final spatial reduction
             conv(bottleneck_features//4, bottleneck_features//4, kernel_size=1),
