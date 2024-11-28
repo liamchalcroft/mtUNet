@@ -1018,6 +1018,9 @@ class nnUNetMultiTaskTrainer(object):
                             
             # Calculate classification loss
             class_loss = self.classification_loss(class_output, class_target)
+
+            print(f"Classification prediction: {class_output.softmax(dim=1)}")
+            print(f"Classification target: {class_target}")
             
             # More balanced loss combination
             total_loss = self.seg_loss_weight * seg_loss + self.class_loss_weight * class_loss
