@@ -58,6 +58,7 @@ from nnunetv2.training.logging.nnunet_logger import nnUNetLogger
 from nnunetv2.training.loss.compound_losses import DC_and_CE_loss, DC_and_BCE_loss
 from nnunetv2.training.loss.deep_supervision import DeepSupervisionWrapper
 from nnunetv2.training.loss.dice import get_tp_fp_fn_tn, MemoryEfficientSoftDiceLoss
+from nnunetv2.training.loss.focal import FocalLoss
 from nnunetv2.training.lr_scheduler.polylr import PolyLRScheduler
 from nnunetv2.utilities.collate_outputs import collate_outputs
 from nnunetv2.utilities.crossval_split import generate_crossval_split
@@ -202,8 +203,7 @@ class nnUNetMultiTaskTrainer(object):
                                "#######################################################################\n",
                                also_print_to_console=True, add_timestamp=False)
 
-        self.seg_loss_weight = 1.0
-        self.class_loss_weight = 1.0  # Adjust these weights as needed
+        self.class_lambda = 0.5 # lambda for classification loss - 0.5 for equal weighting
 
     def initialize(self):
         if not self.was_initialized:
@@ -431,7 +431,7 @@ class nnUNetMultiTaskTrainer(object):
         """
         samples_per_class = torch.tensor([62, 106, 84], dtype=torch.float32, device=self.device)
         weights = samples_per_class.sum() / (len(samples_per_class) * samples_per_class)  # Inverse frequency weighting
-        return nn.CrossEntropyLoss(weight=weights)
+        return FocalLoss(weight=weights, gamma=2., reduction='mean')
 
     def configure_rotation_dummyDA_mirroring_and_inital_patch_size(self):
         """
@@ -1018,12 +1018,9 @@ class nnUNetMultiTaskTrainer(object):
                             
             # Calculate classification loss
             class_loss = self.classification_loss(class_output, class_target)
-
-            print(f"Classification prediction: {class_output.softmax(dim=1)}")
-            print(f"Classification target: {class_target}")
             
             # More balanced loss combination
-            total_loss = self.seg_loss_weight * seg_loss + self.class_loss_weight * class_loss
+            total_loss = (1 - self.class_lambda) * seg_loss + self.class_lambda * class_loss
         
         if self.grad_scaler is not None:
             self.grad_scaler.scale(total_loss).backward()
@@ -1091,10 +1088,7 @@ class nnUNetMultiTaskTrainer(object):
                 
             # Calculate classification loss
             class_loss = self.classification_loss(class_output, class_target)
-            
-            # Combined loss (can be weighted if needed)
-            total_loss = seg_loss + class_loss
-        
+                    
         # we only need the output with the highest output resolution (if DS enabled)
         if self.enable_deep_supervision:
             output = seg_outputs[0]
