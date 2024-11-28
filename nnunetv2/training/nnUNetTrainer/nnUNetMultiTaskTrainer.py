@@ -203,7 +203,9 @@ class nnUNetMultiTaskTrainer(object):
                                "#######################################################################\n",
                                also_print_to_console=True, add_timestamp=False)
 
-        self.class_lambda = 0.5 # lambda for classification loss - 0.5 for equal weighting
+        self.class_lambda = 0.5  # lambda for classification loss - 0.5 for equal weighting
+        self.classification_warmup_epochs = 100  # number of epochs to train only segmentation
+        self.classification_enabled = False  # flag to track if classification training is enabled
 
     def initialize(self):
         if not self.was_initialized:
@@ -990,7 +992,7 @@ class nnUNetMultiTaskTrainer(object):
         """Modified to handle both segmentation and classification"""
         data = batch['data']
         target = batch['target']
-        class_target = batch['subtype']  # New classification target
+        class_target = batch['subtype']
 
         data = data.to(self.device, non_blocking=True)
         if isinstance(target, list):
@@ -1015,12 +1017,13 @@ class nnUNetMultiTaskTrainer(object):
             
             # Calculate segmentation loss (with deep supervision if enabled)
             seg_loss = self.loss(seg_outputs, target)
-                            
-            # Calculate classification loss
-            class_loss = self.classification_loss(class_output, class_target)
             
-            # More balanced loss combination
-            total_loss = (1 - self.class_lambda) * seg_loss + self.class_lambda * class_loss
+            if self.classification_enabled:
+                class_loss = self.classification_loss(class_output, class_target)
+                total_loss = (1 - self.class_lambda) * seg_loss + self.class_lambda * class_loss
+            else:
+                class_loss = torch.tensor(0.0, device=self.device)
+                total_loss = seg_loss
         
         if self.grad_scaler is not None:
             self.grad_scaler.scale(total_loss).backward()
@@ -1086,8 +1089,8 @@ class nnUNetMultiTaskTrainer(object):
 
             seg_loss = self.loss(seg_outputs, target)
                 
-            # Calculate classification loss
-            class_loss = self.classification_loss(class_output, class_target)
+            if self.classification_enabled:
+                class_loss = self.classification_loss(class_output, class_target)
                     
         # we only need the output with the highest output resolution (if DS enabled)
         if self.enable_deep_supervision:
@@ -1195,6 +1198,14 @@ class nnUNetMultiTaskTrainer(object):
 
     def on_epoch_start(self):
         self.logger.log('epoch_start_timestamps', time(), self.current_epoch)
+        
+        # Enable classification after warmup
+        if self.current_epoch >= self.classification_warmup_epochs:
+            self.classification_enabled = True
+            self.print_to_log_file(
+                f"Epoch {self.current_epoch}: Enabling classification training after warmup",
+                also_print_to_console=True
+            )
 
     def on_epoch_end(self):
         self.logger.log('epoch_end_timestamps', time(), self.current_epoch)
