@@ -1018,7 +1018,7 @@ class nnUNetMultiTaskTrainer(object):
             class_loss = self.classification_loss(class_output, class_target)
             
             # Combined loss (can be weighted if needed)
-            total_loss = seg_loss + class_loss
+            total_loss = seg_loss + 100 * class_loss
         
         if self.grad_scaler is not None:
             self.grad_scaler.scale(total_loss).backward()
