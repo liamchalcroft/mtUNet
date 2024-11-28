@@ -42,7 +42,8 @@ class PlainConvUNetWithClassification(PlainConvUNet):
             pool_op,
             nn.Flatten(),
             nn.Linear(bottleneck_features, bottleneck_dim),
-            nn.ReLU(inplace=True),
+            nn.LayerNorm(bottleneck_dim),
+            nn.GELU(inplace=True),
             nn.Dropout(p=0.3),
             nn.Linear(bottleneck_dim, num_classification_classes)
         )
@@ -100,7 +101,8 @@ class ResidualEncoderUNetWithClassification(ResidualEncoderUNet):
             pool_op,
             nn.Flatten(),
             nn.Linear(bottleneck_features, bottleneck_dim),
-            nn.ReLU(inplace=True),
+            nn.LayerNorm(bottleneck_dim),
+            nn.GELU(inplace=True),
             nn.Dropout(p=0.3),
             nn.Linear(bottleneck_dim, num_classification_classes)
         )

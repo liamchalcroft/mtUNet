@@ -1003,7 +1003,7 @@ class nnUNetMultiTaskTrainer(object):
         else:
             class_target = class_target.to(self.device, non_blocking=True)
 
-        self.optimizer.zero_grad(set_to_none=True)
+        self.optimizer.zero_grad()
         
         # Autocast can be annoying
         # If the device_type is 'cpu' then it's slow as heck and needs to be disabled.
@@ -1024,24 +1024,15 @@ class nnUNetMultiTaskTrainer(object):
             
             # More balanced loss combination
             total_loss = self.seg_loss_weight * seg_loss + self.class_loss_weight * class_loss
-            
-            # Randomly select a loss to backpropagate
-            random_number = np.random.rand()
-            if random_number < 0.3:
-                backprop_loss = seg_loss
-            elif random_number < 0.6:
-                backprop_loss = class_loss
-            else:
-                backprop_loss = total_loss
         
         if self.grad_scaler is not None:
-            self.grad_scaler.scale(backprop_loss).backward()
+            self.grad_scaler.scale(total_loss).backward()
             self.grad_scaler.unscale_(self.optimizer)
             torch.nn.utils.clip_grad_norm_(self.network.parameters(), 12)
             self.grad_scaler.step(self.optimizer)
             self.grad_scaler.update()
         else:
-            backprop_loss.backward()
+            total_loss.backward()
             torch.nn.utils.clip_grad_norm_(self.network.parameters(), 12)
             self.optimizer.step()
         
@@ -1469,3 +1460,16 @@ class nnUNetMultiTaskTrainer(object):
             self.on_epoch_end()
 
         self.on_train_end()
+
+    def pcgrad_update(self, seg_loss, class_loss, model):
+        # Get gradients for both tasks
+        seg_grad = torch.autograd.grad(seg_loss, model.parameters(), retain_graph=True)
+        class_grad = torch.autograd.grad(class_loss, model.parameters(), retain_graph=True)
+        
+        # Project conflicting gradients
+        for g1, g2 in zip(seg_grad, class_grad):
+            if g1 is not None and g2 is not None:
+                g1_g2 = torch.sum(g1 * g2)
+                if g1_g2 < 0:  # Conflicting gradients
+                    g2_norm = torch.sum(g2 * g2)
+                    g2 -= (g1_g2 / g2_norm) * g2
