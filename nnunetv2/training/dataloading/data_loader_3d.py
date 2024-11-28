@@ -24,7 +24,7 @@ class nnUNetDataLoader3D(nnUNetDataLoaderBase):
             case_properties.append(properties)
 
             subtype = properties['subtype']
-            subtype_all[j] = subtype
+            subtype_all[j, subtype] = 1
 
             # If we are doing the cascade then the segmentation from the previous stage will already have been loaded by
             # self._data.load_case(i) (see nnUNetDataset.load_case)
@@ -59,18 +59,21 @@ class nnUNetDataLoader3D(nnUNetDataLoaderBase):
                 with threadpool_limits(limits=1, user_api=None):
                     data_all = torch.from_numpy(data_all).float()
                     seg_all = torch.from_numpy(seg_all).to(torch.int16)
-                    subtype_all = torch.from_numpy(subtype_all).to(torch.long)
+                    subtype_all = torch.from_numpy(subtype_all).float()
                     images = []
                     segs = []
+                    subtypes = []
                     for b in range(self.batch_size):
                         tmp = self.transforms(**{'image': data_all[b], 'segmentation': seg_all[b]})
                         images.append(tmp['image'])
                         segs.append(tmp['segmentation'])
+                        subtypes.append(subtype_all[b])
                     data_all = torch.stack(images)
                     if isinstance(segs[0], list):
                         seg_all = [torch.stack([s[i] for s in segs]) for i in range(len(segs[0]))]
                     else:
                         seg_all = torch.stack(segs)
+                    subtype_all = torch.stack(subtypes)
                     del segs, images
 
             return {'data': data_all, 'target': seg_all, 'keys': selected_keys, 'subtype': subtype_all}

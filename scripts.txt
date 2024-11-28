@@ -5,3 +5,7 @@ nnUNetv2_train 1 3d_fullres 0 -p nnUNetResEncUNetMPlans
 nnUNetv2_train 1 3d_fullres 0 -p nnUNetResEncUNetMPlans -device cpu
 
 nnUNetv2_train 1 3d_fullres 0 -p nnUNetResEncUNetMPlans -device mps
+
+export nnUNet_raw=../nnUNet_raw
+export nnUNet_preprocessed=../nnUNet_preprocessed
+export nnUNet_results=../nnUNet_results
