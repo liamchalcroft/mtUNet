@@ -59,6 +59,7 @@ from nnunetv2.training.loss.compound_losses import DC_and_CE_loss, DC_and_BCE_lo
 from nnunetv2.training.loss.deep_supervision import DeepSupervisionWrapper
 from nnunetv2.training.loss.dice import get_tp_fp_fn_tn, MemoryEfficientSoftDiceLoss
 from nnunetv2.training.lr_scheduler.polylr import PolyLRScheduler
+from nnunetv2.architectures.adopt import ADOPT
 from nnunetv2.utilities.collate_outputs import collate_outputs
 from nnunetv2.utilities.crossval_split import generate_crossval_split
 from nnunetv2.utilities.default_n_proc_DA import get_allowed_n_proc_DA
@@ -201,6 +202,9 @@ class nnUNetMultiTaskTrainer(object):
                                "Nature methods, 18(2), 203-211.\n"
                                "#######################################################################\n",
                                also_print_to_console=True, add_timestamp=False)
+
+        self.seg_loss_weight = 1.0
+        self.class_loss_weight = 1.0  # Adjust these weights as needed
 
     def initialize(self):
         if not self.was_initialized:
@@ -424,12 +428,11 @@ class nnUNetMultiTaskTrainer(object):
     
     def _build_classification_loss(self):
         """
-        Build the classification loss function.
-        By default this is cross entropy.
+        Build the classification loss function with balanced weights.
         """
-
-        samples_per_class = [62, 106, 84] # hardcoded for now
-        return nn.CrossEntropyLoss(weight=1./torch.tensor(samples_per_class, dtype=torch.float32, device=self.device))
+        samples_per_class = torch.tensor([62, 106, 84], dtype=torch.float32, device=self.device)
+        weights = samples_per_class.sum() / (len(samples_per_class) * samples_per_class)  # Inverse frequency weighting
+        return nn.CrossEntropyLoss(weight=weights)
 
     def configure_rotation_dummyDA_mirroring_and_inital_patch_size(self):
         """
@@ -512,8 +515,9 @@ class nnUNetMultiTaskTrainer(object):
             self.print_to_log_file('These are the global plan.json settings:\n', dct, '\n', add_timestamp=False)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.SGD(self.network.parameters(), self.initial_lr, weight_decay=self.weight_decay,
-                                    momentum=0.99, nesterov=True)
+        # optimizer = torch.optim.SGD(self.network.parameters(), self.initial_lr, weight_decay=self.weight_decay,
+        #                             momentum=0.99, nesterov=True)
+        optimizer = ADOPT(self.network.parameters(), self.initial_lr, weight_decay=self.weight_decay)
         lr_scheduler = PolyLRScheduler(optimizer, self.initial_lr, self.num_epochs)
         return optimizer, lr_scheduler
 
@@ -1017,8 +1021,8 @@ class nnUNetMultiTaskTrainer(object):
             # Calculate classification loss
             class_loss = self.classification_loss(class_output, class_target)
             
-            # Combined loss (can be weighted if needed)
-            total_loss = seg_loss + 100 * class_loss
+            # More balanced loss combination
+            total_loss = self.seg_loss_weight * seg_loss + self.class_loss_weight * class_loss
         
         if self.grad_scaler is not None:
             self.grad_scaler.scale(total_loss).backward()
