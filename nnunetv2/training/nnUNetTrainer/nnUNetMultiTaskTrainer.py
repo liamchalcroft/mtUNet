@@ -1091,6 +1091,8 @@ class nnUNetMultiTaskTrainer(object):
                 
             if self.classification_enabled:
                 class_loss = self.classification_loss(class_output, class_target)
+            else:
+                class_loss = torch.tensor(0.0, device=self.device)
                     
         # we only need the output with the highest output resolution (if DS enabled)
         if self.enable_deep_supervision:
@@ -1138,9 +1140,12 @@ class nnUNetMultiTaskTrainer(object):
             fp_hard = fp_hard[1:]
             fn_hard = fn_hard[1:]
 
-        # Calculate classification accuracy
-        class_preds = torch.argmax(class_output.softmax(dim=1), dim=1)
-        class_acc = (class_preds == class_target).float().mean()
+        if self.classification_enabled:
+            # Calculate classification accuracy
+            class_preds = torch.argmax(class_output.softmax(dim=1), dim=1)
+            class_acc = (class_preds == class_target).float().mean()
+        else:
+            class_acc = torch.tensor(0.0, device=self.device)
 
         return {
             'seg_loss': seg_loss.detach().cpu().numpy(),
