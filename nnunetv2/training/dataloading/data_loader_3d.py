@@ -59,7 +59,7 @@ class nnUNetDataLoader3D(nnUNetDataLoaderBase):
                 with threadpool_limits(limits=1, user_api=None):
                     data_all = torch.from_numpy(data_all).float()
                     seg_all = torch.from_numpy(seg_all).to(torch.int16)
-                    subtype_all = torch.from_numpy(subtype_all).float()
+                    subtype_all = torch.from_numpy(subtype_all).to(torch.long)
                     images = []
                     segs = []
                     subtypes = []
