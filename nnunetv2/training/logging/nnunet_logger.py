@@ -81,11 +81,11 @@ class nnUNetLogger(object):
         ax = ax_all[1]
         ax2 = ax.twinx()
         if epoch >= classification_warmup_epochs:
-            ax.plot(x_values, self.my_fantastic_logging['train_class_loss'][classification_warmup_epochs:epoch + 1], color='b', ls='-', label="train class loss",
+            ax.plot(x_values[classification_warmup_epochs:], self.my_fantastic_logging['train_class_loss'][classification_warmup_epochs:epoch + 1], color='b', ls='-', label="train class loss",
                     linewidth=4)
-            ax.plot(x_values, self.my_fantastic_logging['val_class_loss'][classification_warmup_epochs:epoch + 1], color='r', ls='-', label="val class loss",
+            ax.plot(x_values[classification_warmup_epochs:], self.my_fantastic_logging['val_class_loss'][classification_warmup_epochs:epoch + 1], color='r', ls='-', label="val class loss",
                     linewidth=4)
-            ax2.plot(x_values, self.my_fantastic_logging['val_class_acc'][classification_warmup_epochs:epoch + 1], color='purple', ls='-', label="classification acc",
+            ax2.plot(x_values[classification_warmup_epochs:], self.my_fantastic_logging['val_class_acc'][classification_warmup_epochs:epoch + 1], color='purple', ls='-', label="classification acc",
                     linewidth=4)
         ax.set_xlabel("epoch") 
         ax.set_ylabel("classification loss")
