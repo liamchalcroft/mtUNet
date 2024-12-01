@@ -1237,7 +1237,7 @@ class nnUNetMultiTaskTrainer(object):
             self.save_checkpoint(join(self.output_folder, 'checkpoint_best.pth'))
 
         if self.local_rank == 0:
-            self.logger.plot_progress_png(self.output_folder)
+            self.logger.plot_progress_png(self.output_folder, self.classification_warmup_epochs)
 
         self.current_epoch += 1
 

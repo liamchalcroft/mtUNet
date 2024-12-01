@@ -54,7 +54,7 @@ class nnUNetLogger(object):
                 if len(self.my_fantastic_logging['ema_fg_dice']) > 0 else value
             self.log('ema_fg_dice', new_ema_pseudo_dice, epoch)
 
-    def plot_progress_png(self, output_folder):
+    def plot_progress_png(self, output_folder, classification_warmup_epochs):
         # we infer the epoch form our internal logging
         epoch = min([len(i) for i in self.my_fantastic_logging.values()]) - 1  # lists of epoch 0 have len 1
         sns.set(font_scale=2.5)
@@ -80,12 +80,13 @@ class nnUNetLogger(object):
         # Classification metrics plot
         ax = ax_all[1]
         ax2 = ax.twinx()
-        ax.plot(x_values, self.my_fantastic_logging['train_class_loss'][:epoch + 1], color='b', ls='-', label="train class loss",
-                linewidth=4)
-        ax.plot(x_values, self.my_fantastic_logging['val_class_loss'][:epoch + 1], color='r', ls='-', label="val class loss",
-                linewidth=4)
-        ax2.plot(x_values, self.my_fantastic_logging['val_class_acc'][:epoch + 1], color='purple', ls='-', label="classification acc",
-                linewidth=4)
+        if epoch >= classification_warmup_epochs:
+            ax.plot(x_values, self.my_fantastic_logging['train_class_loss'][classification_warmup_epochs:epoch + 1], color='b', ls='-', label="train class loss",
+                    linewidth=4)
+            ax.plot(x_values, self.my_fantastic_logging['val_class_loss'][classification_warmup_epochs:epoch + 1], color='r', ls='-', label="val class loss",
+                    linewidth=4)
+            ax2.plot(x_values, self.my_fantastic_logging['val_class_acc'][classification_warmup_epochs:epoch + 1], color='purple', ls='-', label="classification acc",
+                    linewidth=4)
         ax.set_xlabel("epoch") 
         ax.set_ylabel("classification loss")
         ax2.set_ylabel("accuracy")
