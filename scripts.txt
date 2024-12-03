@@ -6,6 +6,8 @@ nnUNetv2_train 1 3d_fullres 0 -p nnUNetResEncUNetMPlans -device cpu
 
 nnUNetv2_train 1 3d_fullres 0 -p nnUNetResEncUNetMPlans -device mps
 
+nnUNetv2_predict_multitask -i ../nnUNet_raw/Dataset001_Pancreas/imagesTs/ -o ../nnUNet_infer/Dataset001_Pancreas/labelsTs/ -d 1 -p nnUNetResEncUNetMPlans -f 0 -device cpu -tr nnUNetMultiTaskTrainer -c 3d_fullres
+
 export nnUNet_raw=../nnUNet_raw
 export nnUNet_preprocessed=../nnUNet_preprocessed
 export nnUNet_results=../nnUNet_results
