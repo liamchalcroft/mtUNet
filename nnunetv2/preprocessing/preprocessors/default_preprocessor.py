@@ -115,7 +115,7 @@ class DefaultPreprocessor(object):
 
     def run_case(self, image_files: List[str], seg_file: Union[str, None], plans_manager: PlansManager,
                  configuration_manager: ConfigurationManager,
-                 dataset_json: Union[dict, str], subtype_map: np.ndarray):
+                 dataset_json: Union[dict, str], subtype_map: np.ndarray = None):
         """
         seg file can be none (test cases)
 
@@ -131,9 +131,10 @@ class DefaultPreprocessor(object):
         # load image(s)
         data, data_properties = rw.read_images(image_files)
 
-        data_id = os.path.basename(image_files[0]).replace("_0000.nii.gz", "")
-        subtype = subtype_map[np.where(subtype_map[:, 0] == data_id)[0][0]][1]
-        data_properties['subtype'] = int(subtype)
+        if subtype_map is not None:
+            data_id = os.path.basename(image_files[0]).replace("_0000.nii.gz", "")
+            subtype = subtype_map[np.where(subtype_map[:, 0] == data_id)[0][0]][1]
+            data_properties['subtype'] = int(subtype)
 
         # if possible, load seg
         if seg_file is not None:
