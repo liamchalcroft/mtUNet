@@ -15,7 +15,13 @@ from nnunetv2.imageio.simpleitk_reader_writer import SimpleITKIO
 # the Evaluator class of the previous nnU-Net was great and all but man was it overengineered. Keep it simple
 from nnunetv2.utilities.json_export import recursive_fix_for_json_export
 from nnunetv2.utilities.plans_handling.plans_handler import PlansManager
-
+from sklearn.metrics import precision_score, recall_score, confusion_matrix
+import re
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.metrics import roc_curve, auc
+import json
+from nnunetv2.evaluation import surface_metrics
 
 def label_or_region_to_key(label_or_region: Union[int, Tuple[int]]):
     return str(label_or_region)
@@ -89,7 +95,7 @@ def compute_tp_fp_fn_tn(mask_ref: np.ndarray, mask_pred: np.ndarray, ignore_mask
 def compute_metrics(reference_file: str, prediction_file: str, image_reader_writer: BaseReaderWriter,
                     labels_or_regions: Union[List[int], List[Union[int, Tuple[int, ...]]]],
                     ignore_label: int = None) -> dict:
-    # load images
+    # Load images
     seg_ref, seg_ref_dict = image_reader_writer.read_seg(reference_file)
     seg_pred, seg_pred_dict = image_reader_writer.read_seg(prediction_file)
 
@@ -99,10 +105,13 @@ def compute_metrics(reference_file: str, prediction_file: str, image_reader_writ
     results['reference_file'] = reference_file
     results['prediction_file'] = prediction_file
     results['metrics'] = {}
+    
     for r in labels_or_regions:
         results['metrics'][r] = {}
         mask_ref = region_or_label_to_mask(seg_ref, r)
         mask_pred = region_or_label_to_mask(seg_pred, r)
+        
+        # Compute standard metrics
         tp, fp, fn, tn = compute_tp_fp_fn_tn(mask_ref, mask_pred, ignore_mask)
         if tp + fp + fn == 0:
             results['metrics'][r]['Dice'] = np.nan
@@ -110,12 +119,39 @@ def compute_metrics(reference_file: str, prediction_file: str, image_reader_writ
         else:
             results['metrics'][r]['Dice'] = 2 * tp / (2 * tp + fp + fn)
             results['metrics'][r]['IoU'] = tp / (tp + fp + fn)
+        
+        # Add volumetric metrics
         results['metrics'][r]['FP'] = fp
         results['metrics'][r]['TP'] = tp
         results['metrics'][r]['FN'] = fn
         results['metrics'][r]['TN'] = tn
         results['metrics'][r]['n_pred'] = fp + tp
         results['metrics'][r]['n_ref'] = fn + tp
+        
+        # Get spacing from metadata
+        spacing = seg_ref_dict.get('spacing', (1.0, 1.0, 1.0))
+        
+        # Compute surface distances using the imported module
+        surface_distances = surface_metrics.compute_surface_distances(
+            mask_ref, mask_pred, spacing)
+        
+        # Compute various surface metrics
+        results['metrics'][r]['surface_dice_at_1mm'] = surface_metrics.compute_surface_dice_at_tolerance(
+            surface_distances, tolerance_mm=1.0)
+        results['metrics'][r]['surface_dice_at_2mm'] = surface_metrics.compute_surface_dice_at_tolerance(
+            surface_distances, tolerance_mm=2.0)
+        results['metrics'][r]['surface_dice_at_5mm'] = surface_metrics.compute_surface_dice_at_tolerance(
+            surface_distances, tolerance_mm=5.0)
+            
+        # Average surface distance
+        avg_surf_dist = surface_metrics.compute_average_surface_distance(surface_distances)
+        results['metrics'][r]['avg_surface_distance_gt_to_pred'] = avg_surf_dist[0]
+        results['metrics'][r]['avg_surface_distance_pred_to_gt'] = avg_surf_dist[1]
+        
+        # Hausdorff distance (95th percentile)
+        results['metrics'][r]['robust_hausdorff_95'] = surface_metrics.compute_robust_hausdorff(
+            surface_distances, percent=95.0)
+
     return results
 
 
@@ -125,9 +161,11 @@ def compute_metrics_on_folder(folder_ref: str, folder_pred: str, output_file: st
                               regions_or_labels: Union[List[int], List[Union[int, Tuple[int, ...]]]],
                               ignore_label: int = None,
                               num_processes: int = default_num_processes,
-                              chill: bool = True) -> dict:
+                              chill: bool = True,
+                              classification_results_file: Optional[str] = None) -> dict:
     """
     output_file must end with .json; can be None
+    classification_results_file should be a CSV with columns 'Names' and 'Subtype'
     """
     if output_file is not None:
         assert output_file.endswith('.json'), 'output_file should end with .json'
@@ -138,9 +176,9 @@ def compute_metrics_on_folder(folder_ref: str, folder_pred: str, output_file: st
         assert all(present), "Not all files in folder_ref exist in folder_pred"
     files_ref = [join(folder_ref, i) for i in files_pred]
     files_pred = [join(folder_pred, i) for i in files_pred]
+
+    # Compute segmentation metrics
     with multiprocessing.get_context("spawn").Pool(num_processes) as pool:
-        # for i in list(zip(files_ref, files_pred, [image_reader_writer] * len(files_pred), [regions_or_labels] * len(files_pred), [ignore_label] * len(files_pred))):
-        #     compute_metrics(*i)
         results = pool.starmap(
             compute_metrics,
             list(zip(files_ref, files_pred, [image_reader_writer] * len(files_pred), [regions_or_labels] * len(files_pred),
@@ -165,14 +203,75 @@ def compute_metrics_on_folder(folder_ref: str, folder_pred: str, output_file: st
             values.append(means[k][m])
         foreground_mean[m] = np.mean(values)
 
+    # Compute classification metrics if classification results are provided
+    classification_metrics = {}
+    if classification_results_file and isfile(classification_results_file):
+        # Read predictions
+        pred_df = pd.read_csv(classification_results_file)
+        
+        # Extract true labels from filenames
+        def extract_subtype(filename):
+            match = re.match(r'quiz_(\d+)_.*\.nii\.gz', filename)
+            return int(match.group(1)) if match else None
+        
+        # Create mapping of filenames to true and predicted labels
+        true_subtypes = []
+        pred_subtypes = []
+        
+        for idx, row in pred_df.iterrows():
+            filename = row['Names']
+            true_subtype = extract_subtype(filename)
+            pred_subtype = row['Subtype']
+            
+            if true_subtype is not None:
+                true_subtypes.append(true_subtype)
+                pred_subtypes.append(pred_subtype)
+
+        # Convert to numpy arrays
+        true_subtypes = np.array(true_subtypes)
+        pred_subtypes = np.array(pred_subtypes)
+
+        # Compute metrics
+        classification_metrics['accuracy'] = np.mean(true_subtypes == pred_subtypes)
+        classification_metrics['precision'] = precision_score(true_subtypes, pred_subtypes, average='weighted')
+        classification_metrics['recall'] = recall_score(true_subtypes, pred_subtypes, average='weighted')
+        
+        # Compute and format confusion matrix
+        cm = confusion_matrix(true_subtypes, pred_subtypes)
+        classification_metrics['confusion_matrix'] = cm.tolist()  # Convert to list for JSON serialization
+        
+        # Per-class metrics
+        unique_classes = sorted(set(true_subtypes) | set(pred_subtypes))
+        per_class_metrics = {}
+        
+        for cls in unique_classes:
+            true_binary = (true_subtypes == cls)
+            pred_binary = (pred_subtypes == cls)
+            
+            per_class_metrics[str(cls)] = {
+                'precision': precision_score(true_binary, pred_binary, zero_division=0),
+                'recall': recall_score(true_binary, pred_binary, zero_division=0),
+                'support': np.sum(true_binary)
+            }
+            
+        classification_metrics['per_class'] = per_class_metrics
+
+    # Prepare final results
     [recursive_fix_for_json_export(i) for i in results]
     recursive_fix_for_json_export(means)
     recursive_fix_for_json_export(foreground_mean)
-    result = {'metric_per_case': results, 'mean': means, 'foreground_mean': foreground_mean}
+    recursive_fix_for_json_export(classification_metrics)
+    
+    result = {
+        'metric_per_case': results, 
+        'mean': means, 
+        'foreground_mean': foreground_mean, 
+        'classification_metrics': classification_metrics
+    }
+
     if output_file is not None:
         save_summary_json(result, output_file)
     return result
-    # print('DONE')
 
 
 def compute_metrics_on_folder2(folder_ref: str, folder_pred: str, dataset_json_file: str, plans_file: str,
@@ -249,6 +348,47 @@ def evaluate_simple_entry_point():
     args = parser.parse_args()
     compute_metrics_on_folder_simple(args.gt_folder, args.pred_folder, args.l, args.o, args.np, args.il, chill=args.chill)
 
+
+def plot_roc_curve(true_labels, predicted_probs, num_classes, output_dir):
+    # Plot ROC curve for each class
+    fpr = dict()
+    tpr = dict()
+    roc_auc = dict()
+    
+    roc_data = {}
+    
+    for i in range(num_classes):
+        fpr[i], tpr[i], _ = roc_curve(true_labels == i, predicted_probs[:, i])
+        roc_auc[i] = auc(fpr[i], tpr[i])
+        
+        # Store ROC data for each class
+        roc_data[f'Class_{i}'] = {
+            'fpr': fpr[i].tolist(),
+            'tpr': tpr[i].tolist(),
+            'auc': roc_auc[i]
+        }
+    
+    # Save ROC data to a JSON file
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    roc_file_path = os.path.join(output_dir, 'roc_data.json')
+    with open(roc_file_path, 'w') as f:
+        json.dump(roc_data, f, indent=4)
+    
+    # Plot all ROC curves
+    plt.figure()
+    for i in range(num_classes):
+        plt.plot(fpr[i], tpr[i], label=f'Class {i} (area = {roc_auc[i]:.2f})')
+    
+    plt.plot([0, 1], [0, 1], 'k--')  # Diagonal line
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Receiver Operating Characteristic')
+    plt.legend(loc='lower right')
+    plt.show()
+    
 
 if __name__ == '__main__':
     folder_ref = '/media/fabian/data/nnUNet_raw/Dataset004_Hippocampus/labelsTr'

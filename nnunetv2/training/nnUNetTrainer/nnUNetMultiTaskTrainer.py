@@ -1444,17 +1444,19 @@ class nnUNetMultiTaskTrainer(object):
                 pd.DataFrame(classifications_dict).to_csv(csv_path, index=False)
                 self.print_to_log_file(f'Saved classifications to {csv_path}')
 
-            # Compute and log metrics
-            metrics = compute_metrics_on_folder(join(self.preprocessed_dataset_folder_base, 'gt_segmentations'),
-                                             validation_output_folder,
-                                             join(validation_output_folder, 'summary.json'),
-                                             self.plans_manager.image_reader_writer_class(),
-                                             self.dataset_json["file_ending"],
-                                             self.label_manager.foreground_regions if self.label_manager.has_regions else
-                                             self.label_manager.foreground_labels,
-                                             self.label_manager.ignore_label, chill=True,
-                                             num_processes=default_num_processes * dist.get_world_size() if
-                                             self.is_ddp else default_num_processes)
+            # Compute metrics including classifications
+            metrics = compute_metrics_on_folder(
+                join(self.preprocessed_dataset_folder_base, 'gt_segmentations'),
+                validation_output_folder,
+                join(validation_output_folder, 'summary.json'),
+                self.plans_manager.image_reader_writer_class(),
+                self.dataset_json["file_ending"],
+                self.label_manager.foreground_regions if self.label_manager.has_regions else self.label_manager.foreground_labels,
+                self.label_manager.ignore_label,
+                classification_results_file=csv_path,  # Add this line
+                chill=True,
+                num_processes=default_num_processes * dist.get_world_size() if self.is_ddp else default_num_processes
+            )
             self.print_to_log_file("Validation complete", also_print_to_console=True)
             self.print_to_log_file("Mean Validation Dice: ", (metrics['foreground_mean']["Dice"]),
                                    also_print_to_console=True)
