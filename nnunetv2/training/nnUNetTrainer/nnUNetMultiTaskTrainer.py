@@ -10,6 +10,7 @@ from time import time, sleep
 from typing import Tuple, Union, List
 
 import numpy as np
+import pandas as pd
 import torch
 from batchgenerators.dataloading.multi_threaded_augmenter import MultiThreadedAugmenter
 from batchgenerators.dataloading.nondet_multi_threaded_augmenter import NonDetMultiThreadedAugmenter
@@ -46,7 +47,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from nnunetv2.configuration import ANISO_THRESHOLD, default_num_processes
 from nnunetv2.evaluation.evaluate_predictions import compute_metrics_on_folder
 from nnunetv2.inference.export_prediction import export_prediction_from_logits, resample_and_save
-from nnunetv2.inference.predict_from_raw_data import nnUNetPredictor
+from nnunetv2.inference.predict_multitask import MultiTaskPredictor
 from nnunetv2.inference.sliding_window_prediction import compute_gaussian
 from nnunetv2.paths import nnUNet_preprocessed, nnUNet_results
 from nnunetv2.training.data_augmentation.compute_initial_patch_size import get_patch_size
@@ -1318,12 +1319,12 @@ class nnUNetMultiTaskTrainer(object):
                                    "forward pass (where compile is triggered) already has deep supervision disabled. "
                                    "This is exactly what we need in perform_actual_validation")
 
-        predictor = nnUNetPredictor(tile_step_size=0.5, use_gaussian=True, use_mirroring=True,
+        predictor = MultiTaskPredictor(tile_step_size=0.5, use_gaussian=True, use_mirroring=True,
                                     perform_everything_on_device=True, device=self.device, verbose=False,
                                     verbose_preprocessing=False, allow_tqdm=False)
         predictor.manual_initialization(self.network, self.plans_manager, self.configuration_manager, None,
                                         self.dataset_json, self.__class__.__name__,
-                                        self.inference_allowed_mirroring_axes)
+                                        self.inference_allowed_mirroring_axes, num_classes=3)
 
         with multiprocessing.get_context("spawn").Pool(default_num_processes) as segmentation_export_pool:
             worker_list = [i for i in segmentation_export_pool._pool]
@@ -1350,6 +1351,7 @@ class nnUNetMultiTaskTrainer(object):
                 _ = [maybe_mkdir_p(join(self.output_folder_base, 'predicted_next_stage', n)) for n in next_stages]
 
             results = []
+            classifications_dict = {'Names': [], 'Subtype': []}  # Add dictionary for classifications
 
             for i, k in enumerate(dataset_val.keys()):
                 proceed = not check_workers_alive_and_busy(segmentation_export_pool, worker_list, results,
@@ -1373,8 +1375,15 @@ class nnUNetMultiTaskTrainer(object):
                 self.print_to_log_file(f'{k}, shape {data.shape}, rank {self.local_rank}')
                 output_filename_truncated = join(validation_output_folder, k)
 
-                prediction = predictor.predict_sliding_window_return_logits(data)
+                prediction, class_prediction = predictor.predict_sliding_window_return_logits(data)
                 prediction = prediction.cpu()
+                class_prediction = class_prediction.cpu()
+
+                # Process classification results
+                class_probs = torch.softmax(class_prediction, dim=0)
+                predicted_class = torch.argmax(class_probs).item()
+                classifications_dict['Names'].append(k + '.nii.gz')
+                classifications_dict['Subtype'].append(predicted_class)
 
                 # this needs to go into background processes
                 results.append(
@@ -1385,9 +1394,6 @@ class nnUNetMultiTaskTrainer(object):
                         )
                     )
                 )
-                # for debug purposes
-                # export_prediction(prediction_for_export, properties, self.configuration, self.plans, self.dataset_json,
-                #              output_filename_truncated, save_probabilities)
 
                 # if needed, export the softmax prediction for the next stage
                 if next_stages is not None:
@@ -1430,17 +1436,25 @@ class nnUNetMultiTaskTrainer(object):
         if self.is_ddp:
             dist.barrier()
 
-        if self.local_rank == 0:
+        # Save classification results to CSV
+        if self.local_rank == 0:  # Only save once in case of DDP
+            # Save classifications to CSV
+            if len(classifications_dict['Names']) > 0:
+                csv_path = join(validation_output_folder, 'validation_subtype_results.csv')
+                pd.DataFrame(classifications_dict).to_csv(csv_path, index=False)
+                self.print_to_log_file(f'Saved classifications to {csv_path}')
+
+            # Compute and log metrics
             metrics = compute_metrics_on_folder(join(self.preprocessed_dataset_folder_base, 'gt_segmentations'),
-                                                validation_output_folder,
-                                                join(validation_output_folder, 'summary.json'),
-                                                self.plans_manager.image_reader_writer_class(),
-                                                self.dataset_json["file_ending"],
-                                                self.label_manager.foreground_regions if self.label_manager.has_regions else
-                                                self.label_manager.foreground_labels,
-                                                self.label_manager.ignore_label, chill=True,
-                                                num_processes=default_num_processes * dist.get_world_size() if
-                                                self.is_ddp else default_num_processes)
+                                             validation_output_folder,
+                                             join(validation_output_folder, 'summary.json'),
+                                             self.plans_manager.image_reader_writer_class(),
+                                             self.dataset_json["file_ending"],
+                                             self.label_manager.foreground_regions if self.label_manager.has_regions else
+                                             self.label_manager.foreground_labels,
+                                             self.label_manager.ignore_label, chill=True,
+                                             num_processes=default_num_processes * dist.get_world_size() if
+                                             self.is_ddp else default_num_processes)
             self.print_to_log_file("Validation complete", also_print_to_console=True)
             self.print_to_log_file("Mean Validation Dice: ", (metrics['foreground_mean']["Dice"]),
                                    also_print_to_console=True)
