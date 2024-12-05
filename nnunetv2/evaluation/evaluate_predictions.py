@@ -251,9 +251,9 @@ def compute_metrics_on_folder(folder_ref: str, folder_pred: str, output_file: st
             pred_binary = (pred_subtypes == cls)
             
             per_class_metrics[str(cls)] = {
+                'accuracy': np.mean(true_binary == pred_binary),
                 'precision': precision_score(true_binary, pred_binary, zero_division=0),
                 'recall': recall_score(true_binary, pred_binary, zero_division=0),
-                'support': np.sum(true_binary)
             }
             
         classification_metrics['per_class'] = per_class_metrics
