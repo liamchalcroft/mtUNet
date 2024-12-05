@@ -133,7 +133,7 @@ def compute_metrics(reference_file: str, prediction_file: str, image_reader_writ
         
         # Compute surface distances using the imported module
         surface_distances = surface_metrics.compute_surface_distances(
-            mask_ref, mask_pred, spacing)
+            mask_ref.squeeze(0), mask_pred.squeeze(0), spacing)
         
         # Compute various surface metrics
         results['metrics'][r]['surface_dice_at_1mm'] = surface_metrics.compute_surface_dice_at_tolerance(
@@ -388,7 +388,7 @@ def plot_roc_curve(true_labels, predicted_probs, num_classes, output_dir):
     plt.title('Receiver Operating Characteristic')
     plt.legend(loc='lower right')
     plt.show()
-    
+
 
 if __name__ == '__main__':
     folder_ref = '/media/fabian/data/nnUNet_raw/Dataset004_Hippocampus/labelsTr'

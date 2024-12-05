@@ -1380,8 +1380,8 @@ class nnUNetMultiTaskTrainer(object):
                 class_prediction = class_prediction.cpu()
 
                 # Process classification results
-                class_probs = torch.softmax(class_prediction, dim=0)
-                predicted_class = torch.argmax(class_probs).item()
+                class_probs = torch.softmax(class_prediction, dim=-1)
+                predicted_class = torch.argmax(class_probs, dim=-1).item()
                 classifications_dict['Names'].append(k + '.nii.gz')
                 classifications_dict['Subtype'].append(predicted_class)
 

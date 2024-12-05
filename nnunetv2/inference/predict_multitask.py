@@ -170,8 +170,13 @@ class MultiTaskPredictor(nnUNetPredictor):
                 prediction = prediction.to('cpu')
                 
                 # Process classifications
-                class_probs = torch.softmax(classifications, dim=0)
-                predicted_class = torch.argmax(class_probs).item()
+                print(f"classifications shape: {classifications.shape}")
+                print(f"classifications: {classifications}")
+                class_probs = torch.softmax(classifications, dim=-1)
+                print(f"class_probs shape: {class_probs.shape}")
+                print(f"class_probs: {class_probs}")
+                predicted_class = torch.argmax(class_probs, dim=-1).item()
+                print(f"predicted_class: {predicted_class}")
                 classifications_dict['Subtype'].append(predicted_class)
 
                 if ofile is not None:
