@@ -71,6 +71,8 @@ def labels_to_list_of_regions(labels: List[int]):
 
 
 def region_or_label_to_mask(segmentation: np.ndarray, region_or_label: Union[int, Tuple[int, ...]]) -> np.ndarray:
+    # in some cases the label may be slightly off from the correct int. lets convert to int to be safe
+    segmentation = segmentation.astype(int)
     if np.isscalar(region_or_label):
         return segmentation == region_or_label
     else:
