@@ -137,11 +137,11 @@ def compute_metrics(reference_file: str, prediction_file: str, image_reader_writ
         
         # Compute various surface metrics
         results['metrics'][r]['surface_dice_at_1mm'] = surface_metrics.compute_surface_dice_at_tolerance(
-            surface_distances, tolerance_mm=(1.0, 1.0, 1.0))
+            surface_distances, tolerance_mm=1.0)
         results['metrics'][r]['surface_dice_at_2mm'] = surface_metrics.compute_surface_dice_at_tolerance(
-            surface_distances, tolerance_mm=(2.0, 2.0, 2.0))
+            surface_distances, tolerance_mm=2.0)
         results['metrics'][r]['surface_dice_at_5mm'] = surface_metrics.compute_surface_dice_at_tolerance(
-            surface_distances, tolerance_mm=(5.0, 5.0, 5.0))
+            surface_distances, tolerance_mm=5.0)
             
         # Average surface distance
         avg_surf_dist = surface_metrics.compute_average_surface_distance(surface_distances)
